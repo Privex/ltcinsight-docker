@@ -1,0 +1,15 @@
+.env
+*.env
+!example.env
+caddy/Caddyfile
+/docker-compose.yml
+
+node_modules
+__pycache__
+*.pyc
+*.swp
+~*
+
+.idea/
+.vscode/
+

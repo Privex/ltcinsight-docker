@@ -1,0 +1,35 @@
+version: '3'
+
+services:
+    insight:
+        env_file: .env
+        container_name: "$DOCKER_NAME"
+        hostname: "$DOCKER_NAME"
+        restart: always
+        image: privex/ltcinsight
+        volumes:
+            - "$DATADIR:/ltc/data"
+        ports:
+            - "${BIND_P2P_PORT}"
+            - "${BIND_HTTP_PORT}"
+    caddy:
+        env_file: .env
+        container_name: "$CADDY_NAME"
+        hostname: "$CADDY_NAME"
+        restart: always
+        build: ./caddy
+        image: ltccaddy
+        volumes:
+            - "./caddy/Caddyfile:/etc/caddy/Caddyfile"
+        ports:
+            - "${CADDY_HTTP_PORT}"
+            - "${CADDY_SSL_PORT}"
+            - "${CADDY_RPC_PORT}"
+        depends_on:
+            - insight
+        
+
+networks:
+    default:
+        driver: 'bridge'
+

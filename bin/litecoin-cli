@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+: ${ltc_ver="0.13.2"}
+: ${ltc_dir="/ltc"}
+: ${ltc_datadir="${ltc_dir}/data"}
+: ${ltc_bindir="${ltc_dir}/node_modules/litecore-node/bin/litecoin-${ltc_ver}/bin"}
+
+exec "${ltc_bindir}/litecoin-cli" -datadir="$ltc_datadir"
+

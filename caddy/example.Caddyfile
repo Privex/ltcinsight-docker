@@ -1,0 +1,46 @@
+#####################################################################################
+# The default host line for this config is ':80', which means 
+# "listen on port 80, and accept connections via any IP or domain"
+#
+# This config also redirects '/', '/index', '/index/', '/home', and '/home/'
+# to the URL '/insight/', since that's where the Insight WebUI is mounted at.
+#
+# If you have a domain you want to use, as long as you've:
+# 
+#     1. Pointed it at this server you'll be running Caddy on,
+#        using an A record and/or an AAAA record.
+#
+#     2. Have Caddy configured via the ltcinsight-docker .env file
+#        to listen on your server's port 80 and 443.
+#
+# Then you can replace / comment out ':80' and add your domain, e.g:
+#
+#     # :80
+#     example.com
+#     
+# This will result in Caddy automatically acquiring an SSL certificate
+# for 'example.com', listening on port 443 using SSL/TLS, as well as
+# automatically redirecting traffic to port 80 (HTTP) to HTTPS on port 443.
+#
+#####################################################################################
+{
+    admin 0.0.0.0:2019 {
+        origins 127.0.0.0/16 172.17.0.0/16 192.168.0.0/16
+    }
+}
+
+
+:80
+{
+    # Redirect common index URLs to /insight/
+    redir / /insight/
+    redir /index /insight/
+    redir /index/ /insight/
+    redir /home /insight/
+    redir /home/ /insight/
+
+    # Proxy all requests to the container with the name 'ltcinsight' on port 3001
+    # (3001 being the default listening port for the insight HTTP API and WebUI)
+    reverse_proxy http://ltcinsight:3001
+}
+
