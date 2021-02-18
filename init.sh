@@ -2,6 +2,9 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:${PATH}"
+export PATH="${HOME}/.local/bin:/snap/bin:${PATH}"
+
 cd "$DIR"
 
 em() {
@@ -13,6 +16,31 @@ hascmd() {
 
 has_cmd() { hascmd "$@"; }
 
+autosudo() {
+    all_args=("$@")
+    first_el="${all_args[0]}"
+    last_els=("${all_args[@]:1:${#all_args[@]}}")
+    last_els_str="$(printf "%q " "${last_els[@]}")"
+
+    if (( EUID != 0 )); then
+        if hascmd sudo; then
+            sudo -- "$@"
+            _ret=$?
+        elif hascmd su; then
+            su -c "$first_el ${last_els_str}"
+            _ret=$?
+        else
+            em " [!!!] You're not root, and neither 'sudo' nor 'su' are available."
+            em " [!!!] Cannot run command: $first_el $last_els_str "
+            return 2
+        fi
+    else
+        env -- "$@"
+        _ret=$?
+    fi
+    return $_ret
+}
+
 : ${LTC_ENV="${DIR}/.env"}
 : ${LTC_ENV_EXM="${DIR}/example.env"}
 
@@ -21,6 +49,8 @@ has_cmd() { hascmd "$@"; }
 
 : ${LTC_CADDY="${DIR}/caddy/Caddyfile"}
 : ${LTC_CADDY_EXM="${DIR}/caddy/example.Caddyfile"}
+: ${COMPOSE_VER="1.28.3"}
+: ${COMPOSE_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-Linux-x86_64"}
 
 if ! [[ -f "$LTC_ENV" ]]; then
     em " [!!!] The env file '${LTC_ENV}' wasn't found. Copying example config '${LTC_ENV_EXM}'..."
@@ -35,6 +65,8 @@ if ! [[ -f "$LTC_CADDY" ]]; then
     em " [!!!] The config file '${LTC_CADDY}' wasn't found. Copying example config '${LTC_CADDY_EXM}'..."
     >&2 cp -v "$LTC_CADDY_EXM" "${LTC_CADDY}"
 fi
+
+source "${LTC_ENV}"
 
 DST_TYPE="" PKG_MGR="" PKG_MGR_INS="" PKG_MGR_UP=""
 
@@ -72,7 +104,7 @@ autoinst() {
     em " [...] Program '$1' not found. Installing package(s):" "${@:2}"
 
     if [[ -n "$PKG_MGR_UP" ]] && (( PM_UPDATED == 0 )); then
-        eval "$PKG_MGR_UP"
+        autosudo $PKG_MGR_UP
         _ret=$?
         if (( _ret )); then
            em "     [!!!] Non-zero return code from '$PKG_MGR_UP' - code: $_ret"
@@ -82,7 +114,8 @@ autoinst() {
         PM_UPDATED=1
     fi
     
-    eval '$PKG_MGR_INS "${@:2}"'
+    autosudo $PKG_MGR_INS "${@:2}"
+
     _ret=$?
     if (( _ret )); then
        em "     [!!!] Non-zero return code from '$PKG_MGR_INS' - code: $_ret"
@@ -96,16 +129,78 @@ autoinst git git
 autoinst wget wget
 autoinst curl curl
 autoinst jq jq
+[[ "$(uname -s)" == "Linux" ]] && autoinst iptables iptables || true
 
 if ! hascmd docker; then
     em " [!!!] Command 'docker' not available. Installing Docker from https://get.docker.com"
     curl -fsS https://get.docker.com | sh
 fi
 
-autoinst docker-compose docker-compose
+
+
+install() {
+    local is_verb=0
+    if [[ "$1" == "-v" || "$1" == "--verbose" ]]; then
+        is_verb=1
+        shift
+    fi
+    all_args=("$@")
+
+    first_els=("${all_args[@]::${#all_args[@]}-1}")
+    last_el="${all_args[-1]}"
+
+    autosudo cp -Rv "${first_els[@]}" "$last_el"
+
+    # If the last arg is a folder, then we need to get the file/folder names of
+    # the first arguments, then prepend them to the last argument (the dest. folder),
+    # so that we can chmod the files in the new location.
+    if [[ -d "$last_el" ]]; then
+        el_names=()
+        for f in "${first_els}"; do
+            el_names+=("${last_el%/}/$(basename "$f")")
+        done
+        autosudo chmod -Rv 755 "${el_names[@]}"
+    else
+        autosudo chmod -v 755 "$last_el"
+    fi
+}
+
+ins-compose() {
+    em " >>> Downloading docker-compose from URL: $COMPOSE_URL"
+    wget -O /tmp/docker-compose "$COMPOSE_URL"
+    em " >>> Attempting to install docker-compose into /usr/local/bin"
+    install /tmp/docker-compose /usr/local/bin/docker-compose
+    _ret=$?
+    [[ -f "/tmp/docker-compose" ]] && rm -f /tmp/docker-compose
+    return $_ret
+}
+
+if ! autoinst docker-compose docker-compose; then
+    em " >>> Detected error while installing docker-compose. Will attempt to install manually."
+    ins-compose
+    _ret=$?
+    if (( _ret == 0 )); then
+        em " [+++] Got successful return code (0) from ins-compose. Docker-compose should be installed."
+    else
+        em " [!!!] Got non-zero code from ins-compose (code: ${_ret}) - install may have errored..."
+    fi
+fi
+
+if hascmd systemctl; then
+    if autosudo systemctl status docker | head -n20 | grep -Eiq 'active:[ \t]+active( \(running\))?'; then
+        em " [+++] Service 'docker' appears to be active and running :)"
+    else
+        em " [!!!] Service 'docker doesn't appear to be running... Attempting to enable and start it..."
+        autosudo systemctl daemon-reload
+        autosudo systemctl enable docker
+        autosudo systemctl restart docker
+        em " [...] Waiting 5 seconds for docker service to start up..."
+        sleep 5
+    fi
+fi
 
 em " >>> Starting Insight Docker Containers using 'docker-compose up -d'"
-docker-compose up -d
+autosudo docker-compose up -d
 _ret=$?
 
 exit $_ret
