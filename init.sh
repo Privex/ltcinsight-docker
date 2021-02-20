@@ -74,6 +74,7 @@ hascmd apt-get && DST_TYPE="deb" PKG_MGR="apt-get"
 [[ -z "$PKG_MGR" ]] && hascmd apt && DST_TYPE="deb" PKG_MGR="apt"
 [[ -z "$PKG_MGR" ]] && hascmd dnf && DST_TYPE="rhel" PKG_MGR="dnf"
 [[ -z "$PKG_MGR" ]] && hascmd yum && DST_TYPE="rhel" PKG_MGR="yum"
+[[ -z "$PKG_MGR" ]] && hascmd pacman && DST_TYPE="arch" PKG_MGR="pacman"
 [[ -z "$PKG_MGR" ]] && hascmd apk && DST_TYPE="alp" PKG_MGR="apk"
 [[ -z "$PKG_MGR" ]] && hascmd brew && DST_TYPE="osx" PKG_MGR="brew"
 
@@ -87,6 +88,8 @@ if [[ -n "$PKG_MGR" ]]; then
     elif [[ "$DST_TYPE" == "alp" ]]; then
         PKG_MGR_INS="${PKG_MGR} add"
         PKG_MGR_UP="${PKG_MGR} update"
+    elif [[ "$DST_TYPE" == "arch" ]]; then
+        PKG_MGR_INS="${PKG_MGR} -Sy"
     elif [[ "$DST_TYPE" == "osx" ]]; then
         PKG_MGR_INS="${PKG_MGR} install"
         PKG_MGR_UP="${PKG_MGR} update"
@@ -134,6 +137,33 @@ autoinst jq jq
 if ! hascmd docker; then
     em " [!!!] Command 'docker' not available. Installing Docker from https://get.docker.com"
     curl -fsS https://get.docker.com | sh
+    _ret=$?
+
+    if (( ret )) || ! hascmd docker; then
+        em " [!!!] ERROR: Command 'docker' is still not available. Falling back to installing Docker via package manager (if possible)"
+        if autoinst docker docker.io; then
+            em " [+++] Successfully installed Docker via package 'docker.io'"
+        else
+            em " [!!!] ERROR: Failed to install package 'docker.io'. Possibly your system's repos list it under 'docker'..."
+            em " [!!!] Falling back to package name 'docker'..."
+            if autoinst docker docker; then
+                em " [+++] Successfully installed Docker via package 'docker'"
+            else
+                em " [!!!] CRITICAL ERROR !!!"
+                em " [!!!] We failed to install Docker via both Docker's auto-install script ( https://get.docker.com )"
+                em " [!!!] AND via your OS's package manager..."
+                em " [!!!] Please go to https://www.docker.com/get-started and lookup your operating system."
+                em " [!!!] You'll need to manually install Docker for your OS, and then re-run this script to try"
+                em " [!!!] setting up + installing + running Insight LTC via Docker for you."
+                em " NOTE: If you're not sure where this script is, it's located at: $0"
+                em "       Full path: ${DIR}/$0"
+                em
+                exit 20
+            fi
+        fi
+    else
+        em " [+++] Successfully installed Docker via the official auto-installer script :)"
+    fi
 fi
 
 
@@ -197,6 +227,23 @@ if hascmd systemctl; then
         em " [...] Waiting 5 seconds for docker service to start up..."
         sleep 5
     fi
+elif hascmd service; then
+    em " [!!!] Warning: Your system doesn't have systemctl, but instead has 'service'. We may not be able to reliably check whether or not Docker is running."
+    em " [!!!] If you see errors while the script starts the Docker containers, check 'service docker status' to see if Docker is running."
+    em " [!!!] If the 'docker' service isn't running, try running 'service restart docker' and then run this script again."
+    em
+    if autosudo service docker status | grep -Eiq "active|running"; then
+        em " [+++] Service 'docker' appears to be active and running :) (fallback check via 'service' command)"
+    else
+        em " [!!!] Service 'docker doesn't appear to be running... Attempting to start it..."
+        autosudo service docker restart
+        em " [...] Waiting 5 seconds for docker service to start up..."
+        sleep 5
+    fi
+else
+    em " [!!!] Warning: Your system doesn't have systemctl, nor 'service'. We cannot check whether or not Docker is running."
+    em " [!!!] If you see errors while the script starts the Docker containers, please ensure the 'docker' service is running,"
+    em " [!!!] using whatever service management tool your OS uses...\n"
 fi
 
 em " >>> Starting Insight Docker Containers using 'docker-compose up -d'"
