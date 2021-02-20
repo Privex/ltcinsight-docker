@@ -80,19 +80,15 @@ hascmd apt-get && DST_TYPE="deb" PKG_MGR="apt-get"
 
 if [[ -n "$PKG_MGR" ]]; then
     if [[ "$DST_TYPE" == "deb" ]]; then
-        PKG_MGR_INS="${PKG_MGR} install -qy"
-        PKG_MGR_UP="${PKG_MGR} update -qy"
+        PKG_MGR_INS="${PKG_MGR} install -qy" PKG_MGR_UP="${PKG_MGR} update -qy"
     elif [[ "$DST_TYPE" == "rhel" ]]; then
-        PKG_MGR_INS="${PKG_MGR} install -y"
-        PKG_MGR_UP="${PKG_MGR} makecache -y"
+        PKG_MGR_INS="${PKG_MGR} install -y" PKG_MGR_UP="${PKG_MGR} makecache -y"
     elif [[ "$DST_TYPE" == "alp" ]]; then
-        PKG_MGR_INS="${PKG_MGR} add"
-        PKG_MGR_UP="${PKG_MGR} update"
+        PKG_MGR_INS="${PKG_MGR} add" PKG_MGR_UP="${PKG_MGR} update"
     elif [[ "$DST_TYPE" == "arch" ]]; then
-        PKG_MGR_INS="${PKG_MGR} -Sy"
+        PKG_MGR_INS="${PKG_MGR} -S --noconfirm" PKG_MGR_UP="${PKG_MGR} -Sy --noconfirm"
     elif [[ "$DST_TYPE" == "osx" ]]; then
-        PKG_MGR_INS="${PKG_MGR} install"
-        PKG_MGR_UP="${PKG_MGR} update"
+        PKG_MGR_INS="${PKG_MGR} install" PKG_MGR_UP="${PKG_MGR} update"
     else
         PKG_MGR=""
     fi
@@ -100,12 +96,7 @@ fi
 
 PM_UPDATED=0
 
-autoinst() {
-    if hascmd "$1"; then
-        return 0
-    fi
-    em " [...] Program '$1' not found. Installing package(s):" "${@:2}"
-
+_instpkg() {
     if [[ -n "$PKG_MGR_UP" ]] && (( PM_UPDATED == 0 )); then
         autosudo $PKG_MGR_UP
         _ret=$?
@@ -128,11 +119,38 @@ autoinst() {
     return 0
 }
 
+instpkg() {
+    rets=0
+    for p in "$@"; do
+        _instpkg "$p"
+        _ret=$?
+        if (( _ret )); then
+            rets=$_ret
+        fi
+    done
+    return $rets
+}
+
+instpkg-all() {
+    _instpkg "$@"
+}
+
+
+autoinst() {
+    if hascmd "$1"; then
+        return 0
+    fi
+    em " [...] Program '$1' not found. Installing package(s):" "${@:2}"
+    instpkg "${@:2}"
+}
+
 autoinst git git
+[[ "$(uname -s)" == "Linux" ]] && autoinst netstat net-tools
 autoinst wget wget
 autoinst curl curl
 autoinst jq jq
 [[ "$(uname -s)" == "Linux" ]] && autoinst iptables iptables || true
+[[ "$DST_TYPE" == "arch" ]] && instpkg-all extra/fuse3 community/fuse-overlayfs bridge-utils
 
 if ! hascmd docker; then
     em " [!!!] Command 'docker' not available. Installing Docker from https://get.docker.com"
