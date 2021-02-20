@@ -108,14 +108,14 @@ _instpkg() {
         PM_UPDATED=1
     fi
     
-    autosudo $PKG_MGR_INS "${@:2}"
+    autosudo $PKG_MGR_INS "$@"
 
     _ret=$?
     if (( _ret )); then
        em "     [!!!] Non-zero return code from '$PKG_MGR_INS' - code: $_ret"
        return $_ret
     fi
-    em "     +++ Successfully installed packages:" "${@:2}"
+    em "     +++ Successfully installed packages:" "$@"
     return 0
 }
 
@@ -157,7 +157,7 @@ if ! hascmd docker; then
     curl -fsS https://get.docker.com | sh
     _ret=$?
 
-    if (( ret )) || ! hascmd docker; then
+    if (( _ret )) || ! hascmd docker; then
         em " [!!!] ERROR: Command 'docker' is still not available. Falling back to installing Docker via package manager (if possible)"
         if autoinst docker docker.io; then
             em " [+++] Successfully installed Docker via package 'docker.io'"
