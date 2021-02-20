@@ -152,6 +152,7 @@ autoinst jq jq
 [[ "$(uname -s)" == "Linux" ]] && autoinst iptables iptables || true
 [[ "$DST_TYPE" == "arch" ]] && instpkg-all extra/fuse3 community/fuse-overlayfs bridge-utils
 
+hascmd systemctl && autosudo systemctl daemon-reload
 if ! hascmd docker; then
     em " [!!!] Command 'docker' not available. Installing Docker from https://get.docker.com"
     curl -fsS https://get.docker.com | sh
@@ -233,6 +234,34 @@ if ! autoinst docker-compose docker-compose; then
         em " [!!!] Got non-zero code from ins-compose (code: ${_ret}) - install may have errored..."
     fi
 fi
+
+hascmd systemctl && autosudo systemctl daemon-reload
+if [[ "$DST_TYPE" == "arch" ]]; then
+    em " >>> Arch Linux detected..."
+    em " >>> Stopping docker service..."
+    autosudo systemctl stop docker
+    em " >>> Waiting 10 seconds for Docker to fully shutdown and cleanup..."
+    sleep 10
+    em " >>> Reloading systemd"
+    autosudo systemctl daemon-reload
+    em " >>> Starting Docker service"
+    autosudo systemctl start docker
+    em " >>> Waiting 10 seconds for Docker to fully start up."
+    sleep 10
+    em " +++ Docker should now be ready."
+    em "\n\n"
+    em " # !!! !!! !!! !!!"
+    em " # !!! WARNING: On Arch Linux, Docker may not be able to automatically install and load the kernel"
+    em " # !!! modules that it requires to function after first being installed."
+    em " # !!!"
+    em " # !!! If you see a bunch of errors when this script tries to start the containers, then you likely"
+    em " # !!! need to upgrade your system (inc. kernel) using 'pacman -Syu' - and then reboot."
+    em " # !!!"
+    em " # !!! After rebooting, Docker's service should then be able to run just fine."
+    em " # !!! !!! !!! !!!\n\n"
+    sleep 5
+fi
+
 
 if hascmd systemctl; then
     if autosudo systemctl status docker | head -n20 | grep -Eiq 'active:[ \t]+active( \(running\))?'; then
