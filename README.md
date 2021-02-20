@@ -31,10 +31,81 @@ Check out Privex's website: https://www.privex.io
 
 We offer fast + reliable VPS and Dedicated server hosting for highly affordable prices, with no personal information or KYC needed.
 
+## Requirements
+
+- A 64-bit Linux system (may also work on macOS). Designed to work on the following distros, and distros based on the below:
+    - Ubuntu 20.04 (Focal) / Ubuntu 18.04 (Bionic)
+    - Debian 10 (Buster)
+    - Fedora 32
+    - CentOS 8
+    - Oracle Linux 8
+    - Redhat Enterprise Linux 8 (RHEL 8)
+    - Arch Linux
+    - Alpine Linux (untested)
+- A CPU that supports the AMD64 (x86_64) architecture - e.g. practically any Intel or AMD CPU produced in the past 15 years.
+- As of Feb 2021, it's recommended to have at LEAST 100gb of disk space (preferably 200gb+)
+- At least 2GB RAM
+
+Software Requirements (auto-installed by `init.sh`):
+
+- `git` to clone this repo
+- [Docker](https://www.docker.com/get-started) to run the containers within
+- Docker Compose (`docker-compose`) to manage the containers using the docker-compose.yml config
+- The BASH shell - to be able to run `init.sh` / `deploy.sh` (BASH is standard on practically every Linux distro, and macOS)
+
+
 
 ## Quickstart
 
-### Using init.sh for auto-install + auto-start on Ubuntu/Debian/CentOS/Oracle/others
+### Quickly deploy using `deploy.sh` oneliner
+
+The `deploy.sh` script is a small BASH deployment script that will ensure `git`, `wget`, and `curl` are all installed,
+then clone the repo into `$HOME/ltcinsight-docker` (unless you set `INS_DIR`), and run `init.sh`
+to install Docker / copy the example files / start the Docker containers.
+
+Using `curl`:
+
+```sh
+curl -fsS https://cdn.privex.io/github/ltcinsight-docker/deploy.sh | bash
+```
+
+Using `wget`:
+
+```sh
+wget -q -O - https://cdn.privex.io/github/ltcinsight-docker/deploy.sh | bash
+```
+
+### (Alternative) Clone the repo manually, and run init.sh
+
+```sh
+git clone https://github.com/Privex/ltcinsight-docker.git
+cd ltcinsight-docker
+./init.sh
+```
+
+### Info about deploy.sh / init.sh for auto-install + auto-start on Ubuntu/Debian/CentOS/Oracle/others
+
+The `deploy.sh` script is designed for use in a one-liner, which will:
+
+- Display a warning, explaining that `ltcinsight-docker` is going to be installed, along with Docker, and certain
+  other related packages and dependencies.
+- Inform you which Git repo is being cloned, and where on your filesystem that it will be cloned into (default: `$HOME/ltcinsight-docker`)
+- Explain that you may press CTRL-C to abort the install if you ran the script by mistake, or noticed some errors.
+- Wait for 10 seconds before starting, to give you a chance to read the information, and cancel the install if you have doubts.
+- Installs basic deps such as `git` (to clone the repo), `curl`, and `wget`.
+- Clones this repository into `$INS_DIR` (default: `$HOME/ltcinsight-docker`)
+- Hands over execution to `init.sh` within the cloned repository.
+
+Available ENV vars for deploy.sh:
+
+```sh
+INS_REPO - The Git repo to clone (default: https://github.com/Privex/ltcinsight-docker.git)
+INS_DIR    - The directory to clone the repo into (default: $HOME/ltcinsight-docker)
+INS_VER    - The branch / tag of the repo to clone (default: master)
+WAITFOR    - The number of seconds to wait at the warning prompt, before starting the install process (default: 10)
+```
+
+--------------------------
 
 The `init.sh` file will:
 
@@ -50,11 +121,6 @@ The `init.sh` file will:
 
 - Starts the Insight LiteCore system (API + WebUI + LTC Daemon) + Caddy webserver using `docker-compose up -d`
 
-```sh
-git clone https://github.com/Privex/ltcinsight-docker.git
-cd ltcinsight-docker
-./init.sh
-```
 
 ### Manual installation + copying example files + starting compose
 
